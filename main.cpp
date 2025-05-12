@@ -278,65 +278,45 @@
  
  // === Main Program ===
  int main(void) {
-    // Initialize ports
+    // Initialize I/O ports first
     DDRC &= ~(1 << VIBRATION_PIN);  // Vibration sensor input
     PORTC |= (1 << VIBRATION_PIN);  // Enable pull-up resistor
     
-    // Configure status LED
-    STATUS_LED_DDR |= (1 << STATUS_LED);  // Set as output
-    
-    // Power-on test sequence
-    status_led_blink(3);  // Blink 3 times to indicate power-on
-    
-    // Initialize peripherals with proper delays
+    STATUS_LED_DDR |= (1 << STATUS_LED);  // Set LED as output
+
+    // Power-on LED test
+    status_led_blink(3);
+
+    // Initialize LCD with proper delays
     lcd_init();
-    _delay_ms(500);  // Extra delay after LCD initialization
+    _delay_ms(500);  // Important delay after initialization
     
-    uart_init();
-    _delay_ms(200);
-    
-    // Display user information (permanent display)
+    // Display user info immediately after LCD init
     display_user_info();
     
-    // Wait before sending startup message to Particle Photon
-    _delay_ms(2000);  // Give the Particle Photon time to boot
-    uart_send_string("PARTICLE:SYSTEM_READY");
-     
-     // Variables for detecting end of laundry cycle
-     LaundryState state = IDLE;
-     uint16_t stable_counter = 0;
-     uint8_t vibration_detected = 0;
-     uint16_t debug_counter = 0;  // For periodic debug messages
-     
-     // Main loop
-     while (1) {
-         vibration_detected = read_vibration();
-         
-         // Status LED feedback - lights when vibration detected
-         if (vibration_detected) {
-             STATUS_LED_PORT |= (1 << STATUS_LED);
-         } else {
-             STATUS_LED_PORT &= ~(1 << STATUS_LED);
-         }
-         
-         // Debug counter for periodic UART messages
-         debug_counter++;
-         if (debug_counter >= 100) {  // Send debug info every ~10 seconds
-             debug_counter = 0;
-             uart_send_debug("Vibration", vibration_detected);
-             uart_send_debug("State", state);
-             uart_send_debug("Stable Counter", stable_counter);
-         }
-         
-         switch (state) {
-             case IDLE:
-                 if (vibration_detected) {
-                     state = ACTIVE;
-                     uart_send_string("PARTICLE:CYCLE_START");
-                 }
-                 break;
-                 
-             case ACTIVE:
+    // Initialize UART for Particle communication
+    uart_init();
+    _delay_ms(1000);  // Give Particle time to boot
+    
+    // Main program variables
+    LaundryState state = IDLE;
+    uint16_t stable_counter = 0;
+    uint8_t vibration_detected = 0;
+    
+    // Main loop - BOTH LCD and sensor will work here
+    while(1) {
+        vibration_detected = read_vibration();
+        
+        // Your sensor logic here...
+        switch(state) {
+            case IDLE:
+                if(vibration_detected) {
+                    state = ACTIVE;
+                    uart_send_string("PARTICLE:CYCLE_START");
+                }
+                break;
+
+            case ACTIVE:
                  if (!vibration_detected) {
                      state = WAITING;
                      stable_counter = 0;
